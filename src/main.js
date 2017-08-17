@@ -6,15 +6,15 @@ const { createStatusTile, updateStatusTile, updateStatusTileScope, disposeToolti
 const linterInterface = require('./linterInterface');
 
 // local helpers
-let format = null;
-let formatOnSave = null;
-let warnAboutLinterEslintFixOnSave = null;
-let displayDebugInfo = null;
-let toggleFormatOnSave = null;
-let subscriptions = null;
-let statusBarHandler = null;
-let statusBarTile = null;
-let tileElement = null;
+let format;
+let formatOnSave;
+let warnAboutLinterEslintFixOnSave;
+let displayDebugInfo;
+let toggleFormatOnSave;
+let subscriptions;
+let statusBarHandler;
+let statusBarTile;
+let tileElement;
 
 // HACK: lazy load most of the code we need for performance
 const lazyFormat = () => {
