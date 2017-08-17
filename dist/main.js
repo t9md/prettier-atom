@@ -1,96 +1,64 @@
 'use strict';
 
+// console.time('load prettier-pkg');
 var config = require('./config-schema.json');
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
 
 var _require = require('atom'),
     CompositeDisposable = _require.CompositeDisposable;
 
-var _require2 = require('./statusTile'),
-    createStatusTile = _require2.createStatusTile,
-    updateStatusTile = _require2.updateStatusTile,
-    updateStatusTileScope = _require2.updateStatusTileScope,
-    disposeTooltip = _require2.disposeTooltip;
-
-var linterInterface = require('./linterInterface');
-
 // local helpers
-var format = null;
-var formatOnSave = null;
-var warnAboutLinterEslintFixOnSave = null;
-var displayDebugInfo = null;
-var toggleFormatOnSave = null;
-var subscriptions = null;
-var statusBarHandler = null;
-var statusBarTile = null;
-var tileElement = null;
+
+
+var linterInterface = void 0;
+var subscriptions = void 0;
+var statusBarHandler = void 0;
 
 // HACK: lazy load most of the code we need for performance
-var lazyFormat = function lazyFormat() {
-  if (!format) format = require('./manualFormat'); // eslint-disable-line global-require
+var lazy = {
+  get format() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    var format = this.__format || (this.__format = require('./manualFormat'));
 
-  var editor = atom.workspace.getActiveTextEditor();
-  if (editor) format(editor);
-};
+    return function () {
+      var editor = atom.workspace.getActiveTextEditor();
+      if (editor) format(editor);
+    };
+  },
+  get formatOnSave() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    return this.__formatOnSave || (this.__formatOnSave = require('./formatOnSave'));
+  },
+  get warnAboutLinterEslintFixOnSave() {
+    return (
+      // eslint-disable-next-line no-underscore-dangle
+      this.__warnAboutLinterEslintFixOnSave || (
+      // eslint-disable-next-line  global-require, no-underscore-dangle
+      this.__warnAboutLinterEslintFixOnSave = require('./warnAboutLinterEslintFixOnSave'))
+    );
+  },
+  get displayDebugInfo() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    return this.__displayDebugInfo || (this.__displayDebugInfo = require('./displayDebugInfo'));
+  },
+  get toggleFormatOnSave() {
+    return (
+      // eslint-disable-next-line  global-require, no-underscore-dangle
+      this.__toggleFormatOnSave || (this.__toggleFormatOnSave = require('./atomInterface').toggleFormatOnSave)
+    );
+  },
+  get attachStatusTile() {
+    var attachStatusTile =
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    this.__attachStatusTile || (this.__attachStatusTile = require('./statusTile').attachStatusTile);
 
-// HACK: lazy load most of the code we need for performance
-var lazyFormatOnSave = function lazyFormatOnSave(editor) {
-  if (!formatOnSave) formatOnSave = require('./formatOnSave'); // eslint-disable-line global-require
-  if (editor) formatOnSave(editor);
-};
-
-// HACK: lazy load most of the code we need for performance
-var lazyWarnAboutLinterEslintFixOnSave = function lazyWarnAboutLinterEslintFixOnSave() {
-  if (!warnAboutLinterEslintFixOnSave) {
-    // eslint-disable-next-line global-require
-    warnAboutLinterEslintFixOnSave = require('./warnAboutLinterEslintFixOnSave');
-  }
-  warnAboutLinterEslintFixOnSave();
-};
-
-// HACK: lazy load most of the code we need for performance
-var lazyDisplayDebugInfo = function lazyDisplayDebugInfo() {
-  if (!displayDebugInfo) {
-    // eslint-disable-next-line global-require
-    displayDebugInfo = require('./displayDebugInfo');
-  }
-  displayDebugInfo();
-};
-
-var lazyToggleFormatOnSave = function lazyToggleFormatOnSave() {
-  if (!toggleFormatOnSave) {
-    // eslint-disable-next-line global-require
-    toggleFormatOnSave = require('./atomInterface').toggleFormatOnSave;
-  }
-  toggleFormatOnSave();
-};
-
-var attachStatusTile = function attachStatusTile() {
-  if (statusBarHandler) {
-    tileElement = createStatusTile();
-    statusBarTile = statusBarHandler.addLeftTile({
-      item: tileElement,
-      priority: 1000
-    });
-    updateStatusTile(subscriptions, tileElement);
-
-    subscriptions.add(atom.config.observe('prettier-atom.formatOnSaveOptions.enabled', function () {
-      return updateStatusTile(subscriptions, tileElement);
-    }));
-    subscriptions.add(
-    // onDidChangeActiveTextEditor is only available in Atom 1.18.0+.
-    atom.workspace.onDidChangeActiveTextEditor ? atom.workspace.onDidChangeActiveTextEditor(function (editor) {
-      return updateStatusTileScope(tileElement, editor);
-    }) : atom.workspace.onDidChangeActivePaneItem(function () {
-      return updateStatusTileScope(tileElement, atom.workspace.getActiveTextEditor());
-    }));
-  }
-};
-
-var detachStatusTile = function detachStatusTile() {
-  disposeTooltip();
-  if (statusBarTile) {
-    statusBarTile.destroy();
+    return function () {
+      return attachStatusTile(statusBarHandler, subscriptions);
+    };
+  },
+  get detachStatusTile() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    return this.__detachStatusTile || (this.__detachStatusTile = require('./statusTile').detachStatusTile);
   }
 };
 
@@ -107,38 +75,50 @@ var loadPackageDeps = function loadPackageDeps() {
 
 // public API
 var activate = function activate() {
+  // console.time('activate prettier');
+  // console.time('load pkg-deps');
   loadPackageDeps();
+  // console.timeEnd('load pkg-deps');
 
   subscriptions = new CompositeDisposable();
-
-  subscriptions.add(atom.commands.add('atom-workspace', 'prettier:format', lazyFormat));
-  subscriptions.add(atom.commands.add('atom-workspace', 'prettier:debug', lazyDisplayDebugInfo));
-  subscriptions.add(atom.commands.add('atom-workspace', 'prettier:toggle-format-on-save', lazyToggleFormatOnSave));
-
-  subscriptions.add(atom.workspace.observeTextEditors(function (editor) {
+  subscriptions.add(atom.commands.add('atom-workspace', {
+    'prettier:format': function prettierFormat() {
+      return lazy.format();
+    },
+    'prettier:debug': function prettierDebug() {
+      return lazy.displayDebugInfo();
+    },
+    'prettier:toggle-format-on-save': function prettierToggleFormatOnSave() {
+      return lazy.toggleFormatOnSave();
+    }
+  }), atom.workspace.observeTextEditors(function (editor) {
     return subscriptions.add(editor.getBuffer().onWillSave(function () {
-      return lazyFormatOnSave(editor);
+      return lazy.formatOnSave(editor);
     }));
-  }));
-  subscriptions.add(atom.config.observe('linter-eslint.fixOnSave', function () {
-    return lazyWarnAboutLinterEslintFixOnSave();
-  }));
-  subscriptions.add(atom.config.observe('prettier-atom.useEslint', function () {
-    return lazyWarnAboutLinterEslintFixOnSave();
-  }));
-  subscriptions.add(atom.config.observe('prettier-atom.formatOnSaveOptions.showInStatusBar', function (show) {
-    return show ? attachStatusTile() : detachStatusTile();
+  }), atom.config.observe('linter-eslint.fixOnSave', function (value) {
+    return value && lazy.warnAboutLinterEslintFixOnSave();
+  }), atom.config.observe('prettier-atom.useEslint', function (value) {
+    return value && lazy.warnAboutLinterEslintFixOnSave();
+  }), atom.config.observe('prettier-atom.formatOnSaveOptions.showInStatusBar', function (show) {
+    if (show) {
+      lazy.attachStatusTile();
+      // eslint-disable-next-line no-underscore-dangle
+    } else if (lazy.__attachStatusTile) {
+      lazy.detachStatusTile();
+    }
   }));
 
   // HACK: an Atom bug seems to be causing old configuration settings to linger for some users
   //       https://github.com/prettier/prettier-atom/issues/72
   atom.config.unset('prettier-atom.singleQuote');
   atom.config.unset('prettier-atom.trailingComma');
+  // console.timeEnd('activate prettier');
+  // console.log(Object.keys(lazy));
 };
 
 var deactivate = function deactivate() {
   subscriptions.dispose();
-  detachStatusTile();
+  lazy.detachStatusTile();
 };
 
 var consumeStatusBar = function consumeStatusBar(statusBar) {
@@ -146,17 +126,21 @@ var consumeStatusBar = function consumeStatusBar(statusBar) {
 
   var showInStatusBar = atom.config.get('prettier-atom.formatOnSaveOptions.showInStatusBar');
   if (showInStatusBar) {
-    attachStatusTile();
+    lazy.attachStatusTile();
   }
 };
 
 var consumeIndie = function consumeIndie(registerIndie) {
   var linter = registerIndie({ name: 'Prettier' });
-  subscriptions.add(linter);
+  if (!linterInterface) {
+    // eslint-disable-next-line global-require
+    linterInterface = require('./linterInterface');
+  }
+
   linterInterface.set(linter);
 
   // Setting and clearing messages per filePath
-  subscriptions.add(atom.workspace.observeTextEditors(function (textEditor) {
+  subscriptions.add(linter, atom.workspace.observeTextEditors(function (textEditor) {
     var editorPath = textEditor.getPath();
     if (!editorPath) {
       return;
@@ -179,3 +163,4 @@ module.exports = {
   consumeStatusBar: consumeStatusBar,
   consumeIndie: consumeIndie
 };
+// console.timeEnd('load prettier-pkg');
