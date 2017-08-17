@@ -1,3 +1,4 @@
+console.time('load prettier-pkg');
 const config = require('./config-schema.json');
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
 const { CompositeDisposable } = require('atom');
@@ -68,8 +69,6 @@ const attachStatusTile = () => {
       atom.config.observe('prettier-atom.formatOnSaveOptions.enabled', () =>
         updateStatusTile(subscriptions, tileElement),
       ),
-    );
-    subscriptions.add(
       // onDidChangeActiveTextEditor is only available in Atom 1.18.0+.
       atom.workspace.onDidChangeActiveTextEditor
         ? atom.workspace.onDidChangeActiveTextEditor(editor => updateStatusTileScope(tileElement, editor))
@@ -96,28 +95,23 @@ const loadPackageDeps = () =>
 
 // public API
 const activate = () => {
+  console.time('activate prettier');
+  console.time('load pkg-deps');
   loadPackageDeps();
+  console.timeEnd('load pkg-deps');
 
   subscriptions = new CompositeDisposable();
-
-  subscriptions.add(atom.commands.add('atom-workspace', 'prettier:format', lazyFormat));
-  subscriptions.add(atom.commands.add('atom-workspace', 'prettier:debug', lazyDisplayDebugInfo));
   subscriptions.add(
-    atom.commands.add('atom-workspace', 'prettier:toggle-format-on-save', lazyToggleFormatOnSave),
-  );
-
-  subscriptions.add(
+    atom.commands.add('atom-workspace', {
+      'prettier:format': lazyFormat,
+      'prettier:debug': lazyDisplayDebugInfo,
+      'prettier:toggle-format-on-save': lazyToggleFormatOnSave,
+    }),
     atom.workspace.observeTextEditors(editor =>
       subscriptions.add(editor.getBuffer().onWillSave(() => lazyFormatOnSave(editor))),
     ),
-  );
-  subscriptions.add(
     atom.config.observe('linter-eslint.fixOnSave', () => lazyWarnAboutLinterEslintFixOnSave()),
-  );
-  subscriptions.add(
     atom.config.observe('prettier-atom.useEslint', () => lazyWarnAboutLinterEslintFixOnSave()),
-  );
-  subscriptions.add(
     atom.config.observe(
       'prettier-atom.formatOnSaveOptions.showInStatusBar',
       show => (show ? attachStatusTile() : detachStatusTile()),
@@ -128,6 +122,7 @@ const activate = () => {
   //       https://github.com/prettier/prettier-atom/issues/72
   atom.config.unset('prettier-atom.singleQuote');
   atom.config.unset('prettier-atom.trailingComma');
+  console.timeEnd('activate prettier');
 };
 
 const deactivate = () => {
@@ -146,11 +141,11 @@ const consumeStatusBar = (statusBar) => {
 
 const consumeIndie = (registerIndie) => {
   const linter = registerIndie({ name: 'Prettier' });
-  subscriptions.add(linter);
   linterInterface.set(linter);
 
   // Setting and clearing messages per filePath
   subscriptions.add(
+    linter,
     atom.workspace.observeTextEditors((textEditor) => {
       const editorPath = textEditor.getPath();
       if (!editorPath) {
@@ -175,3 +170,4 @@ module.exports = {
   consumeStatusBar,
   consumeIndie,
 };
+console.timeEnd('load prettier-pkg');
