@@ -6,54 +6,42 @@ const { createStatusTile, updateStatusTile, updateStatusTileScope, disposeToolti
 
 // local helpers
 let linterInterface;
-let format;
-let formatOnSave;
-let warnAboutLinterEslintFixOnSave;
-let displayDebugInfo;
-let toggleFormatOnSave;
 let subscriptions;
 let statusBarHandler;
 let statusBarTile;
 let tileElement;
 
 // HACK: lazy load most of the code we need for performance
-const lazyFormat = () => {
-  if (!format) format = require('./manualFormat'); // eslint-disable-line global-require
+const lazy = {
+  get format() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    const format = this.__format || (this.__format = require('./manualFormat'));
 
-  const editor = atom.workspace.getActiveTextEditor();
-  if (editor) format(editor);
-};
-
-// HACK: lazy load most of the code we need for performance
-const lazyFormatOnSave = (editor) => {
-  if (!formatOnSave) formatOnSave = require('./formatOnSave'); // eslint-disable-line global-require
-  if (editor) formatOnSave(editor);
-};
-
-// HACK: lazy load most of the code we need for performance
-const lazyWarnAboutLinterEslintFixOnSave = () => {
-  if (!warnAboutLinterEslintFixOnSave) {
-    // eslint-disable-next-line global-require
-    warnAboutLinterEslintFixOnSave = require('./warnAboutLinterEslintFixOnSave');
-  }
-  warnAboutLinterEslintFixOnSave();
-};
-
-// HACK: lazy load most of the code we need for performance
-const lazyDisplayDebugInfo = () => {
-  if (!displayDebugInfo) {
-    // eslint-disable-next-line global-require
-    displayDebugInfo = require('./displayDebugInfo');
-  }
-  displayDebugInfo();
-};
-
-const lazyToggleFormatOnSave = () => {
-  if (!toggleFormatOnSave) {
-    // eslint-disable-next-line global-require
-    toggleFormatOnSave = require('./atomInterface').toggleFormatOnSave;
-  }
-  toggleFormatOnSave();
+    const editor = atom.workspace.getActiveTextEditor();
+    if (editor) format(editor);
+  },
+  get formatOnSave() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    return this.__formatOnSave || (this.__formatOnSave = require('./formatOnSave'));
+  },
+  get warnAboutLinterEslintFixOnSave() {
+    return (
+      // eslint-disable-next-line no-underscore-dangle
+      this.__warnAboutLinterEslintFixOnSave ||
+      // eslint-disable-next-line  global-require, no-underscore-dangle
+      (this.__warnAboutLinterEslintFixOnSave = require('./warnAboutLinterEslintFixOnSave'))
+    );
+  },
+  get displayDebugInfo() {
+    // eslint-disable-next-line  global-require, no-underscore-dangle
+    return this.__displayDebugInfo || (this.__displayDebugInfo = require('./displayDebugInfo'));
+  },
+  get toggleFormatOnSave() {
+    return (
+      // eslint-disable-next-line  global-require, no-underscore-dangle
+      this.__toggleFormatOnSave || (this.__toggleFormatOnSave = require('./atomInterface').toggleFormatOnSave)
+    );
+  },
 };
 
 const attachStatusTile = () => {
@@ -103,15 +91,15 @@ const activate = () => {
   subscriptions = new CompositeDisposable();
   subscriptions.add(
     atom.commands.add('atom-workspace', {
-      'prettier:format': lazyFormat,
-      'prettier:debug': lazyDisplayDebugInfo,
-      'prettier:toggle-format-on-save': lazyToggleFormatOnSave,
+      'prettier:format': () => lazy.format(),
+      'prettier:debug': () => lazy.displayDebugInfo(),
+      'prettier:toggle-format-on-save': () => lazy.toggleFormatOnSave(),
     }),
     atom.workspace.observeTextEditors(editor =>
-      subscriptions.add(editor.getBuffer().onWillSave(() => lazyFormatOnSave(editor))),
+      subscriptions.add(editor.getBuffer().onWillSave(() => lazy.formatOnSave(editor))),
     ),
-    atom.config.observe('linter-eslint.fixOnSave', () => lazyWarnAboutLinterEslintFixOnSave()),
-    atom.config.observe('prettier-atom.useEslint', () => lazyWarnAboutLinterEslintFixOnSave()),
+    atom.config.observe('linter-eslint.fixOnSave', () => lazy.warnAboutLinterEslintFixOnSave()),
+    atom.config.observe('prettier-atom.useEslint', () => lazy.warnAboutLinterEslintFixOnSave()),
     atom.config.observe(
       'prettier-atom.formatOnSaveOptions.showInStatusBar',
       show => (show ? attachStatusTile() : detachStatusTile()),
