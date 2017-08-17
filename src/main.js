@@ -3,9 +3,9 @@ const config = require('./config-schema.json');
 // eslint-disable-next-line import/no-extraneous-dependencies, import/no-unresolved
 const { CompositeDisposable } = require('atom');
 const { createStatusTile, updateStatusTile, updateStatusTileScope, disposeTooltip } = require('./statusTile');
-const linterInterface = require('./linterInterface');
 
 // local helpers
+let linterInterface;
 let format;
 let formatOnSave;
 let warnAboutLinterEslintFixOnSave;
@@ -141,6 +141,11 @@ const consumeStatusBar = (statusBar) => {
 
 const consumeIndie = (registerIndie) => {
   const linter = registerIndie({ name: 'Prettier' });
+  if (!linterInterface) {
+    // eslint-disable-next-line global-require
+    linterInterface = require('./linterInterface');
+  }
+
   linterInterface.set(linter);
 
   // Setting and clearing messages per filePath
